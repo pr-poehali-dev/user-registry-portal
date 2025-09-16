@@ -26,11 +26,34 @@ interface Message {
   unread: boolean;
 }
 
+interface Post {
+  id: string;
+  author: {
+    name: string;
+    avatar: string;
+  };
+  content: string;
+  timestamp: Date;
+  likes: number;
+  likedByUser: boolean;
+  comments: Comment[];
+}
+
+interface Comment {
+  id: string;
+  author: string;
+  content: string;
+  timestamp: Date;
+}
+
 export default function Index() {
   const [currentView, setCurrentView] = useState<'auth' | 'dashboard'>('auth');
+  const [dashboardTab, setDashboardTab] = useState<'feed' | 'messages'>('feed');
   const [authTab, setAuthTab] = useState<'login' | 'register'>('login');
   const [user, setUser] = useState<User | null>(null);
   const [newMessage, setNewMessage] = useState('');
+  const [newPost, setNewPost] = useState('');
+  const [showCreatePost, setShowCreatePost] = useState(false);
   
   // Mock data
   const [messages] = useState<Message[]>([
@@ -54,6 +77,66 @@ export default function Index() {
       content: 'Встреча перенесена на завтра',
       timestamp: new Date('2024-01-14T16:45:00'),
       unread: true
+    }
+  ]);
+
+  // Mock posts data
+  const [posts, setPosts] = useState<Post[]>([
+    {
+      id: '1',
+      author: {
+        name: 'Анна Петрова',
+        avatar: ''
+      },
+      content: 'Сегодня завершили важный этап проекта! Команда работала отлично, все задачи выполнены в срок. Готовимся к следующей фазе разработки 🚀',
+      timestamp: new Date('2024-01-15T14:30:00'),
+      likes: 12,
+      likedByUser: false,
+      comments: [
+        {
+          id: '1',
+          author: 'Михаил Сидоров',
+          content: 'Отличная работа! Поздравляю команду',
+          timestamp: new Date('2024-01-15T14:45:00')
+        }
+      ]
+    },
+    {
+      id: '2',
+      author: {
+        name: 'Михаил Сидоров',
+        avatar: ''
+      },
+      content: 'Поделюсь интересной статьей о новых технологиях в разработке. Много полезных идей для наших будущих проектов.',
+      timestamp: new Date('2024-01-15T12:15:00'),
+      likes: 8,
+      likedByUser: true,
+      comments: []
+    },
+    {
+      id: '3',
+      author: {
+        name: 'Елена Козлова',
+        avatar: ''
+      },
+      content: 'Напоминаю всем о завтрашней встрече в 10:00. Подготовьте, пожалуйста, отчеты по своим задачам.',
+      timestamp: new Date('2024-01-14T18:20:00'),
+      likes: 5,
+      likedByUser: false,
+      comments: [
+        {
+          id: '2',
+          author: 'Анна Петрова',
+          content: 'Готово, отчет будет готов к утру',
+          timestamp: new Date('2024-01-14T18:30:00')
+        },
+        {
+          id: '3',
+          author: 'Иван Петров',
+          content: 'Буду готов!',
+          timestamp: new Date('2024-01-14T19:00:00')
+        }
+      ]
     }
   ]);
 
@@ -94,6 +177,39 @@ export default function Index() {
       console.log('Сообщение отправлено:', newMessage);
       setNewMessage('');
     }
+  };
+
+  const createPost = () => {
+    if (newPost.trim() && user) {
+      const post: Post = {
+        id: Date.now().toString(),
+        author: {
+          name: user.name,
+          avatar: user.avatar
+        },
+        content: newPost,
+        timestamp: new Date(),
+        likes: 0,
+        likedByUser: false,
+        comments: []
+      };
+      setPosts([post, ...posts]);
+      setNewPost('');
+      setShowCreatePost(false);
+    }
+  };
+
+  const toggleLike = (postId: string) => {
+    setPosts(posts.map(post => {
+      if (post.id === postId) {
+        return {
+          ...post,
+          likes: post.likedByUser ? post.likes - 1 : post.likes + 1,
+          likedByUser: !post.likedByUser
+        };
+      }
+      return post;
+    }));
   };
 
   if (currentView === 'auth') {
@@ -231,6 +347,22 @@ export default function Index() {
       </header>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Navigation Tabs */}
+        <div className="mb-8">
+          <Tabs value={dashboardTab} onValueChange={(value) => setDashboardTab(value as 'feed' | 'messages')}>
+            <TabsList className="grid w-full max-w-md mx-auto grid-cols-2">
+              <TabsTrigger value="feed" className="flex items-center">
+                <Icon name="Home" size={16} className="mr-2" />
+                Лента новостей
+              </TabsTrigger>
+              <TabsTrigger value="messages" className="flex items-center">
+                <Icon name="MessageSquare" size={16} className="mr-2" />
+                Сообщения
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Profile Card */}
           <div className="lg:col-span-1">
@@ -282,47 +414,78 @@ export default function Index() {
             </Card>
           </div>
 
-          {/* Messages Panel */}
+          {/* Main Content Panel */}
           <div className="lg:col-span-2">
-            <Card className="shadow-sm h-[600px] flex flex-col">
-              <CardHeader className="flex-shrink-0">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center">
-                    <Icon name="MessageSquare" size={20} className="mr-2" />
-                    Сообщения
-                  </CardTitle>
-                  <Badge variant="secondary">
-                    {messages.filter(m => m.unread).length} новых
-                  </Badge>
-                </div>
-                <CardDescription>
-                  Ваши последние сообщения и уведомления
-                </CardDescription>
-              </CardHeader>
+            {dashboardTab === 'feed' ? (
+              <div className="space-y-6">
+                {/* Create Post Section */}
+                <Card className="shadow-sm">
+                  <CardHeader className="pb-4">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="flex items-center text-lg">
+                        <Icon name="PenTool" size={18} className="mr-2" />
+                        Создать публикацию
+                      </CardTitle>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setShowCreatePost(!showCreatePost)}
+                      >
+                        {showCreatePost ? (
+                          <>
+                            <Icon name="X" size={16} className="mr-2" />
+                            Отмена
+                          </>
+                        ) : (
+                          <>
+                            <Icon name="Plus" size={16} className="mr-2" />
+                            Создать пост
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </CardHeader>
+                  
+                  {showCreatePost && (
+                    <CardContent>
+                      <div className="space-y-4">
+                        <Textarea
+                          placeholder="О чём думаете?..."
+                          value={newPost}
+                          onChange={(e) => setNewPost(e.target.value)}
+                          className="min-h-[100px] resize-none"
+                        />
+                        <div className="flex justify-end">
+                          <Button 
+                            onClick={createPost}
+                            disabled={!newPost.trim()}
+                            className="bg-primary hover:bg-primary/90"
+                          >
+                            <Icon name="Send" size={16} className="mr-2" />
+                            Опубликовать
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
 
-              <CardContent className="flex-1 flex flex-col">
-                {/* Messages List */}
-                <div className="flex-1 space-y-3 overflow-y-auto mb-4">
-                  {messages.map((message) => (
-                    <div
-                      key={message.id}
-                      className={`p-4 rounded-lg border transition-colors hover:bg-gray-50 ${
-                        message.unread ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'
-                      }`}
-                    >
-                      <div className="flex items-start justify-between mb-2">
+                {/* News Feed */}
+                <div className="space-y-4">
+                  {posts.map((post) => (
+                    <Card key={post.id} className="shadow-sm">
+                      <CardHeader className="pb-3">
                         <div className="flex items-center space-x-3">
-                          <Avatar className="w-8 h-8">
-                            <AvatarFallback className="text-xs bg-gray-200">
-                              {message.sender.split(' ').map(n => n[0]).join('')}
+                          <Avatar className="w-10 h-10">
+                            <AvatarImage src={post.author.avatar} alt={post.author.name} />
+                            <AvatarFallback className="text-sm bg-primary/10 text-primary">
+                              {post.author.name.split(' ').map(n => n[0]).join('')}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="font-medium text-sm text-gray-900">
-                              {message.sender}
-                            </div>
+                            <div className="font-medium text-sm">{post.author.name}</div>
                             <div className="text-xs text-gray-500">
-                              {message.timestamp.toLocaleDateString('ru-RU', {
+                              {post.timestamp.toLocaleDateString('ru-RU', {
                                 day: 'numeric',
                                 month: 'short',
                                 hour: '2-digit',
@@ -331,44 +494,157 @@ export default function Index() {
                             </div>
                           </div>
                         </div>
-                        {message.unread && (
-                          <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                      </CardHeader>
+                      
+                      <CardContent className="space-y-4">
+                        <p className="text-gray-700 leading-relaxed">{post.content}</p>
+                        
+                        {/* Post Actions */}
+                        <div className="flex items-center justify-between border-t pt-3">
+                          <div className="flex items-center space-x-4">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => toggleLike(post.id)}
+                              className={`hover:bg-red-50 ${post.likedByUser ? 'text-red-600' : 'text-gray-500'}`}
+                            >
+                              <Icon 
+                                name={post.likedByUser ? "Heart" : "Heart"} 
+                                size={16} 
+                                className={`mr-1 ${post.likedByUser ? 'fill-current' : ''}`}
+                              />
+                              {post.likes}
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-gray-500 hover:bg-blue-50 hover:text-blue-600">
+                              <Icon name="MessageCircle" size={16} className="mr-1" />
+                              {post.comments.length}
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-gray-500 hover:bg-green-50 hover:text-green-600">
+                              <Icon name="Share2" size={16} className="mr-1" />
+                              Поделиться
+                            </Button>
+                          </div>
+                        </div>
+
+                        {/* Comments Section */}
+                        {post.comments.length > 0 && (
+                          <div className="border-t pt-3 space-y-3">
+                            <div className="text-sm font-medium text-gray-700">
+                              Комментарии ({post.comments.length})
+                            </div>
+                            {post.comments.map((comment) => (
+                              <div key={comment.id} className="bg-gray-50 rounded-lg p-3">
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="font-medium text-sm text-gray-900">
+                                    {comment.author}
+                                  </div>
+                                  <div className="text-xs text-gray-500">
+                                    {comment.timestamp.toLocaleDateString('ru-RU', {
+                                      day: 'numeric',
+                                      month: 'short',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </div>
+                                </div>
+                                <p className="text-sm text-gray-700">{comment.content}</p>
+                              </div>
+                            ))}
+                          </div>
                         )}
-                      </div>
-                      <p className="text-sm text-gray-700 ml-11">{message.content}</p>
-                    </div>
+                      </CardContent>
+                    </Card>
                   ))}
                 </div>
-
-                {/* Message Input */}
-                <div className="flex-shrink-0 border-t pt-4">
-                  <div className="flex space-x-2">
-                    <Textarea
-                      placeholder="Написать сообщение..."
-                      value={newMessage}
-                      onChange={(e) => setNewMessage(e.target.value)}
-                      className="flex-1 min-h-[80px] resize-none"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && !e.shiftKey) {
-                          e.preventDefault();
-                          sendMessage();
-                        }
-                      }}
-                    />
-                    <Button 
-                      onClick={sendMessage}
-                      disabled={!newMessage.trim()}
-                      className="self-end"
-                    >
-                      <Icon name="Send" size={16} />
-                    </Button>
+              </div>
+            ) : (
+              /* Messages Panel */
+              <Card className="shadow-sm h-[600px] flex flex-col">
+                <CardHeader className="flex-shrink-0">
+                  <div className="flex items-center justify-between">
+                    <CardTitle className="flex items-center">
+                      <Icon name="MessageSquare" size={20} className="mr-2" />
+                      Сообщения
+                    </CardTitle>
+                    <Badge variant="secondary">
+                      {messages.filter(m => m.unread).length} новых
+                    </Badge>
                   </div>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Нажмите Enter для отправки, Shift+Enter для новой строки
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+                  <CardDescription>
+                    Ваши последние сообщения и уведомления
+                  </CardDescription>
+                </CardHeader>
+
+                <CardContent className="flex-1 flex flex-col">
+                  {/* Messages List */}
+                  <div className="flex-1 space-y-3 overflow-y-auto mb-4">
+                    {messages.map((message) => (
+                      <div
+                        key={message.id}
+                        className={`p-4 rounded-lg border transition-colors hover:bg-gray-50 ${
+                          message.unread ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200'
+                        }`}
+                      >
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex items-center space-x-3">
+                            <Avatar className="w-8 h-8">
+                              <AvatarFallback className="text-xs bg-gray-200">
+                                {message.sender.split(' ').map(n => n[0]).join('')}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <div className="font-medium text-sm text-gray-900">
+                                {message.sender}
+                              </div>
+                              <div className="text-xs text-gray-500">
+                                {message.timestamp.toLocaleDateString('ru-RU', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                  hour: '2-digit',
+                                  minute: '2-digit'
+                                })}
+                              </div>
+                            </div>
+                          </div>
+                          {message.unread && (
+                            <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                          )}
+                        </div>
+                        <p className="text-sm text-gray-700 ml-11">{message.content}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Message Input */}
+                  <div className="flex-shrink-0 border-t pt-4">
+                    <div className="flex space-x-2">
+                      <Textarea
+                        placeholder="Написать сообщение..."
+                        value={newMessage}
+                        onChange={(e) => setNewMessage(e.target.value)}
+                        className="flex-1 min-h-[80px] resize-none"
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && !e.shiftKey) {
+                            e.preventDefault();
+                            sendMessage();
+                          }
+                        }}
+                      />
+                      <Button 
+                        onClick={sendMessage}
+                        disabled={!newMessage.trim()}
+                        className="self-end"
+                      >
+                        <Icon name="Send" size={16} />
+                      </Button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Нажмите Enter для отправки, Shift+Enter для новой строки
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
       </div>
